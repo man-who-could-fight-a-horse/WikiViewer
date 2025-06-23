@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wikipedia Proxy Loader</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f9faff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        header {
+            margin: 3rem 0 2rem;
+            text-align: center;
+        }
+
+            header h1 {
+                margin: 0;
+                font-weight: 700;
+                color: #2c3e50;
+            }
+
+        main {
+            background: white;
+            padding: 2rem 2.5rem;
+            border-radius: 10px;
+            box-shadow: 0 6px 14px rgba(0,0,0,0.1);
+            width: 90%;
+            max-width: 480px;
+        }
+
+        label {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #34495e;
+        }
+
+        input[type="url"] {
+            width: 100%;
+            font-size: 1rem;
+            padding: 0.5rem 0.75rem;
+            border: 2px solid #3498db;
+            border-radius: 6px;
+            box-sizing: border-box;
+            transition: border-color 0.25s ease;
+        }
+
+            input[type="url"]:focus {
+                border-color: #2980b9;
+                outline: none;
+            }
+
+        button {
+            margin-top: 1.5rem;
+            width: 100%;
+            padding: 0.75rem;
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: white;
+            background: #3498db;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+            button:hover {
+                background: #2980b9;
+            }
+
+        #status {
+            margin-top: 1rem;
+            font-size: 0.95rem;
+            color: #e74c3c;
+            min-height: 1.2em;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Wikipedia Proxy Loader</h1>
+    </header>
+
+    <main>
+        <label for="wikiUrl">Enter Wikipedia article URL:</label>
+        <input type="url" id="wikiUrl" placeholder="https://en.wikipedia.org/wiki/Example" />
+        <button id="loadBtn">Load Article</button>
+        <div id="status"></div>
+    </main>
+
+    <script>
+        const proxyBase = "http://localhost:8080/proxy?url=";
+        const absoluteURL = u => new URL(u, "https://en.wikipedia.org").href;
+
+        async function fetchAndClean(url, targetDoc) {
+            try {
+                document.getElementById("status").textContent = "Loading...";
+                const res = await fetch(proxyBase + encodeURIComponent(url));
+                if (!res.ok) throw new Error("HTTP error " + res.status);
+                const htmlText = await res.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlText, "text/html");
+                doc.querySelector('#p-lang-btn')?.remove();
+                const heading = doc.querySelector("h1#firstHeading");
+                const content = doc.querySelector("#mw-content-text");
+                const infobox = content?.querySelector(".infobox");
+                if (!heading || !content) throw new Error("Heading or content not found");
+                let infoboxHTML = "";
+                if (infobox) {
+                    infobox.style.cssText = "float:right;margin:0 0 1em 1em;border:1px solid #a2a9b1;padding:0.4em;background:#f8f9fa;font-size:90%;line-height:1.4;width:280px;max-width:100%;";
+                    infoboxHTML = infobox.outerHTML;
+                    infobox.remove();
+                }
+                content.querySelectorAll("img").forEach(img => {
+                    img.src = absoluteURL(img.getAttribute("src"));
+                });
+                content.querySelectorAll("a").forEach(a => {
+                    const href = a.getAttribute("href");
+                    if (href?.startsWith("/")) a.href = absoluteURL(href);
+                });
+                let outputHtml = heading.outerHTML + infoboxHTML + content.outerHTML;
+                targetDoc.body.innerHTML = `<style>body{font-family:Arial,sans-serif;margin:2em;line-height:1.6;max-width:900px}h1,h2,h3{font-weight:bold;margin-top:1.4em}p{margin-bottom:1em}ul,ol{margin-left:1.5em;margin-bottom:1em}a{color:#0645ad;text-decoration:none}a:hover{text-decoration:underline}table{border-collapse:collapse}td,th{padding:4px 6px;border:1px solid #ccc}img{max-width:100%;height:auto}</style>` + outputHtml;
+                targetDoc.querySelectorAll('a[href^="https://en.wikipedia.org/wiki/"]').forEach(a => {
+                    a.addEventListener("click", async e => {
+                        e.preventDefault();
+                        await fetchAndClean(a.href, targetDoc);
+                        targetDoc.title = a.href;
+                    });
+                });
+                targetDoc.title = url;
+                document.getElementById("status").textContent = "";
+            } catch (err) {
+                document.getElementById("status").textContent = "Failed: " + err.message;
+            }
+        }
+
+        document.getElementById("loadBtn").addEventListener("click", async () => {
+            const input = document.getElementById("wikiUrl").value.trim();
+            if (!input) {
+                document.getElementById("status").textContent = "Please enter a Wikipedia article URL.";
+                return;
+            }
+            try {
+                new URL(input);  // Validate URL format
+            } catch {
+                document.getElementById("status").textContent = "Invalid URL format.";
+                return;
+            }
+            const win = window.open();
+            if (!win) {
+                document.getElementById("status").textContent = "Popup blocked! Please allow popups.";
+                return;
+            }
+            win.document.write("<body><p>Loading...</p></body>");
+            win.document.close();
+            await fetchAndClean(input, win.document);
+        });
+    </script>
+
+</body>
+</html>
