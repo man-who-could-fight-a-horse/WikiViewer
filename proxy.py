@@ -1,47 +1,32 @@
-from flask import Flask, request, Response, send_from_directory
+from flask import Flask, request, Response
 import requests
-import os
 
-app = Flask(__name__, static_folder="static")
+app = Flask(__name__)
 
-@app.route("/")
-def index():
-    # Serve your HTML file
-    return send_from_directory(app.static_folder, "index.html")
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
 
-@app.route("/proxy", methods=["GET", "OPTIONS"])
+@app.route("/", methods=["GET", "OPTIONS"])
 def proxy():
     if request.method == "OPTIONS":
-        headers = {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type",
-        }
-        return "", 204, headers
+        return Response(status=204)
 
     target_url = request.args.get("url")
     if not target_url:
-        return "Missing url parameter", 400
+        return "Missing 'url' parameter", 400
 
     try:
-        resp = requests.get(target_url, stream=True)
+        headers = {"User-Agent": "Mozilla/5.0"}
+        r = requests.get(target_url, headers=headers, timeout=10)
+        return Response(r.content, content_type=r.headers.get("Content-Type", "text/html"))
     except requests.exceptions.RequestException as e:
-        return f"Error fetching target URL: {e}", 500
-
-    excluded_headers = [
-        "content-encoding",
-        "content-length",
-        "transfer-encoding",
-        "connection",
-    ]
-    headers = [(name, value) for name, value in resp.raw.headers.items()
-               if name.lower() not in excluded_headers]
-
-    headers.append(("Access-Control-Allow-Origin", "*"))
-    headers.append(("Access-Control-Allow-Methods", "GET, OPTIONS"))
-    headers.append(("Access-Control-Allow-Headers", "Content-Type"))
-
-    return Response(resp.raw, status=resp.status_code, headers=headers)
+        return f"Failed to fetch: {e}", 500
 
 if __name__ == "__main__":
-    app.run(port=8080)
+    import os
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
