@@ -105,7 +105,7 @@
         const articleView = document.getElementById("articleView");
 
         status.textContent = "Loading...";
-        const res = await fetch(fetchBase + encodeURIComponent(url));
+        const res = await fetch(fetchBase + "https://en.wikipedia.org/wiki/" + encodeURIComponent(url));
         if (!res.ok) throw new Error("HTTP error " + res.status);
         const htmlText = await res.text();
 
