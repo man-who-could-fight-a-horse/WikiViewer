@@ -15,12 +15,12 @@ def add_cors_headers(response):
 def serve_index():
     return send_from_directory("static", "index.html")
 
-@app.route("/proxy", methods=["GET", "OPTIONS"])
+@app.route("/get", methods=["GET", "OPTIONS"])
 def proxy():
     if request.method == "OPTIONS":
         return Response(status=204)
-
-    target_url = request.args.get("url")
+        
+    target_url = request.args.get("q")
     if not target_url:
         return "Missing 'url' parameter", 400
 
