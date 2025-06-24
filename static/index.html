@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Article Explorer</title>
+  <title>Wiki Viewer</title>
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -82,7 +82,7 @@
 <body>
 
   <header>
-    <h1>Article Explorer</h1>
+    <h1>Wiki Viewer</h1>
   </header>
 
   <main id="inputSection">
@@ -95,7 +95,7 @@
   <div id="articleView" style="display: none;"></div>
 
   <script>
-    const fetchBase = "https://wikiviewer.onrender.com/get?q="; // Update your route if needed
+    const fetchBase = "https://wikiviewer.onrender.com/get?q=";
     const absoluteURL = u => new URL(u, "https://en.wikipedia.org").href;
 
     async function fetchAndDisplay(url) {
