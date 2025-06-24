@@ -1,61 +1,36 @@
-from flask import Flask, request, render_template
+from flask import Flask, request, Response, send_from_directory
 import requests
-from bs4 import BeautifulSoup
-from urllib.parse import urlparse
+import os
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="static")
+
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
 
 @app.route("/")
-def home():
-    return '''
-    <html>
-    <head>
-        <title>Article Explorer</title>
-        <link rel="stylesheet" href="/static/style.css">
-    </head>
-    <body>
-        <h1>Article Explorer</h1>
-        <form action="/view" method="get">
-            <label>Wikipedia URL:</label>
-            <input type="url" name="q" placeholder="https://en.wikipedia.org/wiki/Cat" required>
-            <button type="submit">View</button>
-        </form>
-    </body>
-    </html>
-    '''
+def serve_index():
+    return send_from_directory("static", "index.html")
 
-@app.route("/view")
-def view_article():
-    url = request.args.get("q")
-    if not url or "wikipedia.org" not in urlparse(url).netloc:
-        return "Invalid or missing Wikipedia URL", 400
+@app.route("/get", methods=["GET", "OPTIONS"])
+def proxy():
+    if request.method == "OPTIONS":
+        return Response(status=204)
+        
+    target_url = request.args.get("q")
+    if not target_url:
+        return "Missing 'url' parameter", 400
 
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(r.content, "html.parser")
-
-        heading = soup.select_one("h1#firstHeading")
-        content = soup.select_one("#mw-content-text")
-        if not heading or not content:
-            return "Could not extract content", 500
-
-        # Remove infobox if present
-        infobox = content.select_one(".infobox")
-        if infobox:
-            infobox.decompose()
-
-        # Fix relative image and link URLs
-        for tag in content.find_all(["img", "a"]):
-            if tag.name == "img" and tag.has_attr("src") and tag["src"].startswith("/"):
-                tag["src"] = "https://en.wikipedia.org" + tag["src"]
-            elif tag.name == "a" and tag.has_attr("href") and tag["href"].startswith("/"):
-                tag["href"] = "https://en.wikipedia.org" + tag["href"]
-
-        return render_template("viewer.html", title=heading.text, heading=heading.text, content=str(content))
-
-    except Exception as e:
-        return f"Failed to fetch article: {e}", 500
+        r = requests.get(target_url, headers=headers, timeout=10)
+        return Response(r.content, content_type=r.headers.get("Content-Type", "text/html"))
+    except requests.exceptions.RequestException as e:
+        return f"Failed to fetch: {e}", 500
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
